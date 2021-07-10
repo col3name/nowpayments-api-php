@@ -4,20 +4,26 @@ namespace Nowpayments\Template;
 
 require('vendor/autoload.php');
 require('response/StatusReturn.php');
+require('types/GetEstimatePrice.php');
 require('response/EstimatedPriceReturn.php');
+require('types/CreatePayment.php');
 require('response/CreatePaymentReturn.php');
 require('response/PaymentStatusReturn.php');
 require('response/MinimumPaymentAmountResponse.php');
 require('response/ListPaymentItem.php');
+require('types/GetListPayments.php');
 require('response/GetListPaymentsReturn.php');
 require('response/InvoiceReturn.php');
-require('Exception.php');
+require('MyException.php');
 
 use DateTime;
 use MyException;
 use Nowpayments\Template\Response\CreateInvoice;
+use Nowpayments\Template\Response\CreatePayment;
 use Nowpayments\Template\Response\CreatePaymentReturn;
 use Nowpayments\Template\Response\EstimatedPriceReturn;
+use Nowpayments\Template\Response\GetEstimatePrice;
+use Nowpayments\Template\Response\GetListPayments;
 use Nowpayments\Template\Response\GetListPaymentsReturn;
 use Nowpayments\Template\Response\InvoiceReturn;
 use Nowpayments\Template\Response\ListPaymentItem;
@@ -34,11 +40,6 @@ use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
  */
 class NOWPaymentsApi
 {
-    const SORT_BY_FIELDS = ["payment_id", "payment_status", "pay_address", "price_amount", "price_currency",
-        "pay_amount", "actually_paid", "pay_currency",
-        "order_id", "order_description", "purchase_id", "outcome_amount", "outcome_currency",
-    ];
-
     private $apiKey;
     private $url;
 
@@ -103,13 +104,11 @@ class NOWPaymentsApi
     }
 
     /**
-     * @param $amount
-     * @param $currency_from
-     * @param $currency_to
+     * @param GetEstimatePrice $getEstimatePrice
      * @return EstimatedPriceReturn
      * @throws MyException
      */
-    public function getEstimatePrice($amount, $currency_from, $currency_to): EstimatedPriceReturn
+    public function getEstimatePrice(GetEstimatePrice $getEstimatePrice): EstimatedPriceReturn
     {
         try {
             $httpClient = HttpClient::create();
@@ -117,9 +116,9 @@ class NOWPaymentsApi
             $response = $httpClient->request('GET', $this->url . '/estimate', [
                 'headers' => ['x-api-key' => $this->apiKey],
                 'query' => [
-                    "amount" => $amount,
-                    "currency_from" => $currency_from,
-                    "currency_to" => $currency_to
+                    "amount" => $getEstimatePrice->getAmount(),
+                    "currency_from" => $getEstimatePrice->getCurrencyFrom(),
+                    "currency_to" => $getEstimatePrice->getCurrencyTo(),
                 ]
             ]);
 
@@ -159,37 +158,63 @@ class NOWPaymentsApi
      *   payout_currency (optional) - currency of your external payout_address, required when payout_adress is specified.
      *   payout_extra_id(optional) - extra id or memo or tag for external payout_address.
      *   fixed_rate(optional) - boolean, can be true or false. Required for fixed-rate exchanges.
-     * @param int $priceAmount
-     * @param string $priceCurrency
-     * @param string $payCurrency
-     * @param array $optionals
+     * @param CreatePayment $createPayment
      * @return CreatePaymentReturn
      * @throws MyException
      */
-    public function createPayment(int $priceAmount, string $priceCurrency, string $payCurrency, array $optionals = []): CreatePaymentReturn
+    public function createPayment(CreatePayment $createPayment): CreatePaymentReturn
     {
         try {
             $httpClient = HttpClient::create();
 
-            if ($this->checkExistKey($optionals, "payout_address") && $this->checkExistKey($optionals, "payout_currency")) {
+            if (strlen($createPayment->getPayoutAddress()) !== 0 && strlen($createPayment->getPayoutCurrency()) === 0) {
                 throw new MyException("currency of your external payout_address, required when payout_adress is specified.");
             }
-            $optionals['price_amount'] = $priceAmount;
-            $optionals['price_currency'] = $priceCurrency;
-            $optionals['pay_currency'] = $payCurrency;
+
+            $data['price_amount'] = $createPayment->getPriceAmount();
+            $data['price_currency'] = $createPayment->getPriceCurrency();
+            if ($createPayment->getPayAmount() !== -1) {
+                $data['pay_amount'] = $createPayment->getPayAmount();
+            }
+
+            $data['pay_currency'] = $createPayment->getPayCurrency();
+            if ($createPayment->isSetPayoutCurrency()) {
+                $data['ipn_callback_url'] = $createPayment->getIpnCallbackUrl();
+            }
+            if ($createPayment->isSetOrderId()) {
+                $data['order_id'] = $createPayment->getOrderId();
+            }
+            if ($createPayment->isSetOrderDescription()) {
+                $data['order_description'] = $createPayment->getOrderDescription();
+            }
+            if ($createPayment->isSetPurchaseId()) {
+                $data['purchase_id'] = $createPayment->getPurchaseId();
+            }
+            if ($createPayment->isSetPayoutAddress()) {
+                $data['payout_address'] = $createPayment->getPayoutAddress();
+            }
+            if ($createPayment->isSetPayCurrency()) {
+                $data['payout_currency'] = $createPayment->getPayCurrency();
+            }
+            if ($createPayment->isSetPayoutExtraId()) {
+                $data['payout_extra_id'] = $createPayment->getPayoutExtraId();
+            }
+            if ($createPayment->isSetFixedRate()) {
+                $data['fixed_rate'] = $createPayment->getFixedRate();
+            }
 
             $response = $httpClient->request('POST', $this->url . '/payment', [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'x-api-key' => $this->apiKey
                 ],
-                'body' => json_encode($optionals)
+                'body' => json_encode($data)
             ]);
 
             $content = $response->getContent();
             $decode = json_decode($content, true);
 
-            $this->buildPaymentReturn($decode);
+            return $this->buildPaymentReturn($decode);
         } catch (ExceptionInterface $e) {
             throw new MyException($e->getMessage());
         }
@@ -312,61 +337,55 @@ class NOWPaymentsApi
      *   Get the minimum payment amount for a specific pair.
      *   You can provide both currencies in the pair or just currency_from, and we will calculate the minimum payment amount for currency_from and currency which you have specified as the outcome in the Store Settings.
      *   In the case of several outcome wallets we will calculate the minimum amount in the same way we route your payment to a specific wallet.
-     * @param int $limit
-     * @param int $page
-     * @param $sortBy
-     * @param $orderBy
-     * @param $dateFrom
-     * @param $dateTo
+     * @param GetListPayments|null $getListPayments
      * @return GetListPaymentsReturn
      * @throws MyException
      */
-    public function getListPayments(int $limit = 2147483647, int $page = 2147483647, string $sortBy = "", string $orderBy = "", string $dateFrom = "", string $dateTo = ""): GetListPaymentsReturn
+    public function getListPayments(GetListPayments $getListPayments = null): GetListPaymentsReturn
     {
         try {
             $httpClient = HttpClient::create();
 
-            $data = [];
+            $query = [];
+            if ($getListPayments !== null) {
+                $limit = $getListPayments->getLimit();
+                if ($getListPayments->isSetLimit()) {
+                    $query['limit'] = $limit;
+                }
 
-            if ($limit !== 2147483647 && ($limit < 1 || $limit > 500)) {
-                throw new MyException("Valid limit range [1: 500]. Current " . $limit);
-            } else {
-                $data['limit'] = $limit;
-            }
+                $page = $getListPayments->getPage();
+                if ($getListPayments->isSetPage()) {
+                    $query['page'] = $page;
+                }
 
-            if ($page !== 2147483647 && $page < 0) {
-                throw new MyException("Invalid page value");
-            } else {
-                $data['page'] = $page;
-            }
+                $sortBy = $getListPayments->getSortBy();
+                if ($getListPayments->isSetSortBy()) {
+                    $query['sortBy'] = $sortBy;
+                }
 
-            if (strlen($sortBy) !== 0 && !in_array($sortBy, $this::SORT_BY_FIELDS)) {
-                throw new MyException("Invalid sort fields. Valid sort fields payment_id, payment_status, pay_address, price_amount, price_currency, pay_amount, actually_paid, pay_currency, order_id, order_description, purchase_id, outcome_amount, outcome_currency");
-            } else if (strlen($sortBy) !== 0) {
-                $data['sortBy'] = $sortBy;
-            }
+                $orderBy = $getListPayments->getOrderBy();
+                if ($getListPayments->isSetOrderBy()) {
+                    $query['orderBy'] = $orderBy;
+                }
 
-            if (strlen($orderBy) !== 0 && $orderBy !== "asc" && $orderBy !== "desc") {
-                throw new MyException("Invalid order by fields. Valid value asc, desc");
-            } else if (strlen($orderBy) !== 0) {
-                $data['orderBy'] = $orderBy;
-            }
+                $dateFrom = $getListPayments->getDateFrom();
+                if ($getListPayments->isSetDateFrom()) {
+                    $query['dateFrom'] = $dateFrom;
+                }
 
-            if (strlen($dateFrom) !== 0) {
-                $data['dateFrom'] = $dateFrom;
-            }
-            if (strlen($dateTo) !== 0) {
-                $data['dateTo'] = $dateTo;
+                $dateTo = $getListPayments->getDateTo();
+                if ($getListPayments->isSetDateTo()) {
+                    $query['dateTo'] = $dateTo;
+                }
             }
 
             $response = $httpClient->request('GET', $this->url . '/payment', [
                 'headers' => ['x-api-key' => $this->apiKey],
-                'query' => $data
+                'query' => $query
             ]);
 
             $content = $response->getContent();
             $result = json_decode($content, true);
-            var_dump($result);
             if ($this->checkExistKey($result, "data")) {
                 throw new MyException("response json don't have date field");
             }
@@ -384,7 +403,9 @@ class NOWPaymentsApi
             }
 
             $getListPaymentsReturn = new GetListPaymentsReturn($result["limit"], $result["page"], $result["pagesCount"], $result["total"]);
+
             foreach ($result["data"] as $invoice) {
+
                 $invoice1 = new ListPaymentItem($invoice["payment_id"],
                     $invoice["payment_status"],
                     $invoice["pay_address"],
@@ -440,22 +461,22 @@ class NOWPaymentsApi
                 "price_amount" => $invoice->getPriceAmount(),
                 "price_currency" => $invoice->getPriceCurrency(),
             ];
-            if (strlen($invoice->getPayCurrency()) !== 0) {
+            if ($invoice->isSetPayCurrency()) {
                 $data["pay_currency"] = $invoice->getPayCurrency();
             }
-            if (strlen($invoice->getIpnCallbackUrl()) !== 0) {
+            if ($invoice->isSetIpnCallbackUrl()) {
                 $data["ipn_callback_url"] = $invoice->getIpnCallbackUrl();
             }
-            if (strlen($invoice->getOrderId()) !== 0) {
+            if ($invoice->isSetOrderId()) {
                 $data["order_id"] = $invoice->getOrderId();
             }
-            if (strlen($invoice->getOrderDescription()) !== 0) {
+            if ($invoice->isSetOrderDescription()) {
                 $data["order_description "] = $invoice->getOrderDescription();
             }
-            if (strlen($invoice->getSuccessUrl()) !== 0) {
+            if ($invoice->isSetSuccessUrl()) {
                 $data["success_url"] = $invoice->getSuccessUrl();
             }
-            if (strlen($invoice->getCancelUrl()) !== 0) {
+            if ($invoice->isSetCancelUrl()) {
                 $data["cancel_url"] = $invoice->getCancelUrl();
             }
 
@@ -500,7 +521,12 @@ class NOWPaymentsApi
         return array_key_exists($key, $array);
     }
 
-    private function validateDate($date, $format = ' YYYY-MM-DD')
+    /**
+     * @param $date
+     * @param string $format
+     * @return bool
+     */
+    private function validateDate($date, $format = ' YYYY-MM-DD'): bool
     {
         $d = DateTime::createFromFormat($format, $date);
         return $d && $d->format($format) == $date;

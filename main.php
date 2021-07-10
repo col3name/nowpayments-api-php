@@ -1,8 +1,8 @@
 <?php
 
-require('NOWPaymentsApi.php');
-require('Currency.php');
-require('response/CreateInvoice.php');
+require('src/NOWPaymentsApi.php');
+require('src/Currency.php');
+require('src/types/CreateInvoice.php');
 
 use Nowpayments\Template\NOWPaymentsApi;
 use Nowpayments\Template\Currency;

@@ -7,7 +7,7 @@ class CreateInvoice
     private $priceAmount; //(required) - the amount that users have to pay for the order stated in fiat currency. In case you do not indicate the price in crypto, our system will automatically convert this fiat amount into its crypto equivalent.
     private $priceCurrency; //(required) - the fiat currency in which the price_amount is specified (usd, eur, etc).
     private $payCurrency; //(optional) - the crypto currency in which the pay_amount is specified (btc, eth, etc).If not specified, can be chosen on the invoice_url
-    private $ipnCallback_url; //(optional) - url to receive callbacks, should contain "http" or "https", eg. "https://nowpayments.io"
+    private $ipnCallbackUrl; //(optional) - url to receive callbacks, should contain "http" or "https", eg. "https://nowpayments.io"
     private $orderId;//(optional) - inner store order ID, e.g. "RGDBP-21314"
     private $orderDescription; //(optional) - inner store order description, e.g. "Apple Macbook Pro 2019 x 1"
     private $successUrl; //(optional) - url where the customer will be redirected after successful payment.
@@ -30,7 +30,7 @@ class CreateInvoice
         $this->priceAmount = $priceAmount;
         $this->priceCurrency = $priceCurrency;
         $this->payCurrency = $payCurrency;
-        $this->ipnCallback_url = $ipnCallbackUrl;
+        $this->ipnCallbackUrl = $ipnCallbackUrl;
         $this->orderId = $orderId;
         $this->orderDescription = $orderDescription;
         $this->successUrl = $successUrl;
@@ -78,6 +78,13 @@ class CreateInvoice
     }
 
     /**
+     * @return bool
+     */
+    public function isSetPayCurrency(): bool {
+        return strlen($this->payCurrency) !== 0;
+    }
+
+    /**
      * @param string $payCurrency
      */
     public function setPayCurrency(string $payCurrency): void
@@ -90,15 +97,22 @@ class CreateInvoice
      */
     public function getIpnCallbackUrl(): string
     {
-        return $this->ipnCallback_url;
+        return $this->ipnCallbackUrl;
     }
 
     /**
-     * @param string $ipnCallback_url
+     * @return bool
      */
-    public function setIpnCallbackUrl(string $ipnCallback_url): void
+    public function isSetIpnCallbackUrl(): bool {
+        return strlen($this->ipnCallbackUrl) !== 0;
+    }
+
+    /**
+     * @param string $ipnCallbackUrl
+     */
+    public function setIpnCallbackUrl(string $ipnCallbackUrl): void
     {
-        $this->ipnCallback_url = $ipnCallback_url;
+        $this->ipnCallbackUrl = $ipnCallbackUrl;
     }
 
     /**
@@ -107,6 +121,13 @@ class CreateInvoice
     public function getOrderId(): string
     {
         return $this->orderId;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isSetOrderId(): bool {
+        return strlen($this->orderId) !== 0;
     }
 
     /**
@@ -126,6 +147,13 @@ class CreateInvoice
     }
 
     /**
+     * @return bool
+     */
+    public function isSetOrderDescription(): bool {
+        return strlen($this->orderDescription) !== 0;
+    }
+
+    /**
      * @param string $orderDescription
      */
     public function setOrderDescription(string $orderDescription): void
@@ -142,6 +170,13 @@ class CreateInvoice
     }
 
     /**
+     * @return bool
+     */
+    public function isSetSuccessUrl(): bool {
+        return strlen($this->successUrl) !== 0;
+    }
+
+    /**
      * @param string $successUrl
      */
     public function setSuccessUrl(string $successUrl): void
@@ -155,6 +190,13 @@ class CreateInvoice
     public function getCancelUrl(): string
     {
         return $this->cancelUrl;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isSetCancelUrl(): bool {
+        return strlen($this->cancelUrl) !== 0;
     }
 
     /**
