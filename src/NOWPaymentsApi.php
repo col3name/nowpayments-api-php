@@ -90,7 +90,6 @@ class NOWPaymentsApi
 
             $response = $httpClient->request('GET', $this->url . '/currencies', $options);
             $content = $response->getContent();
-            var_dump($content);
             $decode = json_decode($content, true);
 
             if ($this->checkExistKey($decode, "currencies")) {
