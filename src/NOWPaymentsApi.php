@@ -50,8 +50,8 @@ class NOWPaymentsApi
     public function __construct($apiKey)
     {
         $this->apiKey = $apiKey;
-//        $this->url = 'https://api.nowpayments.io/v1';
-        $this->url = 'http://localhost:3000/v1';
+        $this->url = 'https://api.nowpayments.io/v1';
+       // $this->url = 'http://localhost:3000/v1';
     }
 
     /**
