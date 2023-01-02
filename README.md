@@ -4,7 +4,12 @@
 ## Installation
 This project using composer.
 ```
-$ composer require bearname/nowpayments-api-php
+$ composer require bearname/nowpayments-api-php 
+```
+
+Compatible with php8 and ignore platform requirements
+```
+$ composer require bearname/nowpayments-api-php --ignore-platform-reqs
 ```
 
 ## Usage
