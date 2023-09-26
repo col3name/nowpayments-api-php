@@ -1,5 +1,5 @@
 
-
+[Available here](https://packagist.org/packages/bearname/nowpayments-api-php)
 
 ## Installation
 This project using composer.
