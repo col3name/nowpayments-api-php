@@ -1,6 +1,6 @@
 {
   "name": "bearname/nowpayments-api-php",
-  "description": "Nowpayments php api",
+  "description": "Nowpayments php api client with types",
   "homepage": "https://github.com/bearname/nowpayments-api-php",
   "keywords": [
     "template",
