@@ -42,16 +42,54 @@ class NOWPaymentsApi
 {
     private $apiKey;
     private $url;
+    private $session;
 
     /**
      * NOWPaymentsApi constructor.
      * @param $apiKey
      */
-    public function __construct($apiKey)
+    public function __construct($apiKey, $token = '')
     {
         $this->apiKey = $apiKey;
         $this->url = 'https://api.nowpayments.io/v1';
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+
+        $this->token = $token;
+		$this->session = $ch;
        // $this->url = 'http://localhost:3000/v1';
+    }
+
+    public function setToken($token) {
+        $this->token = $token;
+    }
+
+    public function auth($username, $password) {
+        $httpClient = HttpClient::create();
+
+        $data = [
+            'username' => $username,
+            'password' => $password
+        ];
+
+        $response = $httpClient->request('POST', $this->url . '/auth', [
+            'headers' => [
+                'Content-Type' => 'application/json',
+            ],
+            'body' => json_encode($data)
+        ]);
+
+        $content = $response->getContent();
+        $decode = json_decode($content, true);
+
+        if ($this->checkExistKey($decode, "token")) {
+            throw new MyException("response json don't have token field");
+        }
+
+        $this.$token = $decode["token"];
     }
 
     /**
@@ -74,6 +112,50 @@ class NOWPaymentsApi
             throw new MyException($e->getMessage());
         }
     }
+
+    public function callPost($endpoint, $data = []) {
+        return $this->call('POST', $endpoint, $data);
+    }
+
+    public function callGet($endpoint, $params = []) {
+        return $this->call('GET', $endpoint, $params);
+    }
+
+
+    private function call($method, $endpoint, $data = []) {
+		$ch = $this->session;
+
+		switch ($method) {
+			case 'GET':
+				curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: '.$this->token]);
+				if(!empty($data)) {
+					if(is_array($data)) {
+						$parameters = http_build_query($data);
+						curl_setopt($ch, CURLOPT_URL, self::API_BASE.$endpoint.'?'.$parameters);
+					} else {
+						if($endpoint == 'payment') curl_setopt($ch, CURLOPT_URL, self::API_BASE.$endpoint.'/'.$data);
+					}
+				} else {
+					curl_setopt($ch, CURLOPT_URL, self::API_BASE.$endpoint);
+				}
+				break;
+			
+			case 'POST':
+				$data = json_encode($data);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, ['X-API-KEY: '.$this->apiKey, 'Content-Type: application/json']);
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+				curl_setopt($ch, CURLOPT_URL, self::API_BASE.$endpoint);
+				break;
+
+			default:
+				break;
+		}
+
+		$response = curl_exec($ch);
+
+		return $response;
+	}
 
     /**
      * @return array
